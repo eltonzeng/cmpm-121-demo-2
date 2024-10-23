@@ -4,7 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Add the app title
     const appTitle = document.createElement('h1');
-    appTitle.textContent = 'Sticker Sketchpad';
+    appTitle.textContent = 'Digital Content Creation App';
     document.body.appendChild(appTitle);
 
     // Create a canvas element
@@ -14,10 +14,18 @@ document.addEventListener("DOMContentLoaded", () => {
     canvas.style.border = '1px solid black';
     document.body.appendChild(canvas);
 
-    // Create a "Clear" button
+    // Create "Clear", "Undo", and "Redo" buttons
     const clearButton = document.createElement('button');
     clearButton.textContent = 'Clear Canvas';
     document.body.appendChild(clearButton);
+
+    const undoButton = document.createElement('button');
+    undoButton.textContent = 'Undo';
+    document.body.appendChild(undoButton);
+
+    const redoButton = document.createElement('button');
+    redoButton.textContent = 'Redo';
+    document.body.appendChild(redoButton);
 
     // Set document title
     document.title = APP_NAME;
@@ -27,9 +35,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const ctx = canvas.getContext('2d')!;
     let isDrawing = false;
 
-    // Array to store arrays of points for each drawing session
+    // Arrays to store drawing paths and for undo/redo management
     let drawingPoints: Array<Array<{ x: number, y: number }>> = [];
     let currentPath: Array<{ x: number, y: number }> = [];
+    let redoStack: Array<Array<{ x: number, y: number }>> = [];
 
     // Custom event to notify drawing change
     const dispatchDrawingChangedEvent = () => {
@@ -54,9 +63,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     canvas.addEventListener('mouseup', () => {
         if (isDrawing) {
-            drawingPoints.push(currentPath); // Save the path
+            drawingPoints.push(currentPath); // Save the current path into drawingPoints
             currentPath = [];
             isDrawing = false;
+            redoStack = []; // Clear redo stack when a new drawing is made
         }
     });
 
@@ -65,13 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
         currentPath = [];
     });
 
-    // Clear button event listener
-    clearButton.addEventListener('click', () => {
-        drawingPoints = []; // Clear stored points
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
-    });
-
-    // Observer for the "drawing-changed" event
+    // Observer for the "drawing-changed" event to redraw the canvas
     canvas.addEventListener('drawing-changed', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
 
@@ -99,6 +103,35 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             ctx.stroke();
+        }
+    });
+
+    // Clear button event listener
+    clearButton.addEventListener('click', () => {
+        drawingPoints = []; // Clear stored points
+        redoStack = [];     // Clear the redo stack
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+    });
+
+    // Undo button event listener
+    undoButton.addEventListener('click', () => {
+        if (drawingPoints.length > 0) {
+            const lastPath = drawingPoints.pop(); // Remove the last path
+            if (lastPath) {
+                redoStack.push(lastPath); // Push it to the redo stack
+                dispatchDrawingChangedEvent(); // Notify change and redraw
+            }
+        }
+    });
+
+    // Redo button event listener
+    redoButton.addEventListener('click', () => {
+        if (redoStack.length > 0) {
+            const redoPath = redoStack.pop(); // Remove the last path from redo stack
+            if (redoPath) {
+                drawingPoints.push(redoPath); // Push it back to the drawing list
+                dispatchDrawingChangedEvent(); // Notify change and redraw
+            }
         }
     });
 });
