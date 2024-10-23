@@ -1,5 +1,3 @@
-import "./style.css";
-
 document.addEventListener("DOMContentLoaded", () => {
     const APP_NAME = "Hello World";
     const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -13,7 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 256;
-    canvas.style.border = '1px solid black'; // You can add the rest of the styling in CSS
+    canvas.style.border = '1px solid black';
     document.body.appendChild(canvas);
 
     // Create a "Clear" button
@@ -21,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
     clearButton.textContent = 'Clear Canvas';
     document.body.appendChild(clearButton);
 
+    // Set document title
     document.title = APP_NAME;
     app.innerHTML = APP_NAME;
 
@@ -28,32 +27,78 @@ document.addEventListener("DOMContentLoaded", () => {
     const ctx = canvas.getContext('2d')!;
     let isDrawing = false;
 
-    // Mouse event handlers
+    // Array to store arrays of points for each drawing session
+    let drawingPoints: Array<Array<{ x: number, y: number }>> = [];
+    let currentPath: Array<{ x: number, y: number }> = [];
+
+    // Custom event to notify drawing change
+    const dispatchDrawingChangedEvent = () => {
+        const event = new CustomEvent('drawing-changed');
+        canvas.dispatchEvent(event);
+    };
+
+    // Mouse event handlers to track points
     canvas.addEventListener('mousedown', (e) => {
         isDrawing = true;
-        ctx.beginPath();
-        ctx.moveTo(e.offsetX, e.offsetY); // Start the path at mouse position
+        currentPath = []; // Start a new path for this drawing session
+        currentPath.push({ x: e.offsetX, y: e.offsetY });
+        dispatchDrawingChangedEvent(); // Notify change
     });
 
     canvas.addEventListener('mousemove', (e) => {
         if (isDrawing) {
-            ctx.lineTo(e.offsetX, e.offsetY); // Draw a line to the mouse position
-            ctx.stroke(); // Actually draw it
+            currentPath.push({ x: e.offsetX, y: e.offsetY });
+            dispatchDrawingChangedEvent(); // Notify change after every new point
         }
     });
 
     canvas.addEventListener('mouseup', () => {
-        isDrawing = false;
-        ctx.closePath(); // Close the path when the mouse is released
+        if (isDrawing) {
+            drawingPoints.push(currentPath); // Save the path
+            currentPath = [];
+            isDrawing = false;
+        }
     });
 
     canvas.addEventListener('mouseleave', () => {
         isDrawing = false;
-        ctx.closePath(); // Stop drawing if the mouse leaves the canvas
+        currentPath = [];
     });
 
     // Clear button event listener
     clearButton.addEventListener('click', () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the entire canvas
+        drawingPoints = []; // Clear stored points
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+    });
+
+    // Observer for the "drawing-changed" event
+    canvas.addEventListener('drawing-changed', () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
+
+        // Redraw all points from the stored paths
+        drawingPoints.forEach(path => {
+            if (path.length > 0) {
+                ctx.beginPath();
+                ctx.moveTo(path[0].x, path[0].y);
+
+                for (let i = 1; i < path.length; i++) {
+                    ctx.lineTo(path[i].x, path[i].y);
+                }
+
+                ctx.stroke();
+            }
+        });
+
+        // Draw the currently active path
+        if (currentPath.length > 0) {
+            ctx.beginPath();
+            ctx.moveTo(currentPath[0].x, currentPath[0].y);
+
+            for (let i = 1; i < currentPath.length; i++) {
+                ctx.lineTo(currentPath[i].x, currentPath[i].y);
+            }
+
+            ctx.stroke();
+        }
     });
 });
