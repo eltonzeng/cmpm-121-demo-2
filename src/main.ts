@@ -1,10 +1,10 @@
 document.addEventListener("DOMContentLoaded", () => {
     const APP_NAME = "Sticker Sketchpad";
-    const app = document.querySelector<HTMLDivElement>("#app")!;
+    const appContainer = document.querySelector<HTMLDivElement>("#app")!;
 
-    const appTitle = document.createElement('h1');
-    appTitle.textContent = 'Sticker Sketchpad';
-    document.body.appendChild(appTitle);
+    const title = document.createElement('h1');
+    title.textContent = APP_NAME;
+    document.body.appendChild(title);
 
     const canvas = document.createElement('canvas');
     canvas.width = 256;
@@ -12,56 +12,71 @@ document.addEventListener("DOMContentLoaded", () => {
     canvas.style.border = '1px solid black';
     document.body.appendChild(canvas);
 
-    const clearButton = document.createElement('button');
-    clearButton.textContent = 'Clear Canvas';
-    document.body.appendChild(clearButton);
+    const createButton = (text: string) => {
+        const button = document.createElement('button');
+        button.textContent = text;
+        document.body.appendChild(button);
+        return button;
+    };
 
-    const undoButton = document.createElement('button');
-    undoButton.textContent = 'Undo';
-    document.body.appendChild(undoButton);
+    const clearButton = createButton('Clear Canvas');
+    const undoButton = createButton('Undo');
+    const redoButton = createButton('Redo');
+    const thinButton = createButton('Thin Marker');
+    const thickButton = createButton('Thick Marker');
+    const coconutButton = createButton('🥥');
+    const mangoButton = createButton('🥭');
+    const watermelonButton = createButton('🍉');
 
-    const redoButton = document.createElement('button');
-    redoButton.textContent = 'Redo';
-    document.body.appendChild(redoButton);
-
-    const thinButton = document.createElement('button');
-    thinButton.textContent = 'Thin Marker';
     thinButton.classList.add("toolButton");
-    document.body.appendChild(thinButton);
-
-    const thickButton = document.createElement('button');
-    thickButton.textContent = 'Thick Marker';
     thickButton.classList.add("toolButton");
-    document.body.appendChild(thickButton);
 
     document.title = APP_NAME;
-    app.innerHTML = APP_NAME;
+    appContainer.innerHTML = APP_NAME;
 
     const ctx = canvas.getContext('2d')!;
     let isDrawing = false;
     let markerThickness = 2;
+    let activeTool: 'marker' | 'sticker' = 'marker';
+    let activeSticker: string | null = null;
 
-    thinButton.addEventListener('click', () => {
-        markerThickness = 2;
-        thinButton.classList.add("selectedTool");
-        thickButton.classList.remove("selectedTool");
-    });
+    const setSelectedTool = (thickness: number, selectedButton: HTMLButtonElement, otherButton: HTMLButtonElement) => {
+        markerThickness = thickness;
+        activeTool = 'marker';
+        activeSticker = null;
+        selectedButton.classList.add("selectedTool");
+        otherButton.classList.remove("selectedTool");
+        dispatchCustomEvent('tool-moved');
+    };
 
-    thickButton.addEventListener('click', () => {
-        markerThickness = 6;
-        thickButton.classList.add("selectedTool");
-        thinButton.classList.remove("selectedTool");
-    });
+    thinButton.addEventListener('click', () => setSelectedTool(2, thinButton, thickButton));
+    thickButton.addEventListener('click', () => setSelectedTool(6, thickButton, thinButton));
 
-    let drawingCommands: MarkerLine[] = [];
-    let redoStack: MarkerLine[] = [];
-    let currentCommand: MarkerLine | null = null;
-    let toolPreview: ToolPreview | null = null;
+    coconutButton.addEventListener('click', () => selectSticker('🥥'));
+    mangoButton.addEventListener('click', () => selectSticker('🥭'));
+    watermelonButton.addEventListener('click', () => selectSticker('🍉'));
 
-    const dispatchDrawingChangedEvent = () => {
-        const event = new CustomEvent('drawing-changed');
+    let drawingCommands: (MarkerLine | Sticker)[] = [];
+    let redoStack: (MarkerLine | Sticker)[] = [];
+    let activeLine: MarkerLine | null = null;
+    let toolPreview: Preview | null = null;
+
+    const dispatchCustomEvent = (eventType: string) => {
+        const event = new CustomEvent(eventType);
         canvas.dispatchEvent(event);
     };
+
+    const selectSticker = (sticker: string) => {
+        activeTool = 'sticker';
+        activeSticker = sticker;
+        toolPreview = new StickerPreview(sticker);
+        dispatchCustomEvent('tool-moved');
+    };
+
+    interface Preview {
+        updatePosition(x: number, y: number): void;
+        draw(ctx: CanvasRenderingContext2D): void;
+    }
 
     class MarkerLine {
         private points: { x: number; y: number }[];
@@ -72,25 +87,25 @@ document.addEventListener("DOMContentLoaded", () => {
             this.thickness = thickness;
         }
 
-        drag(x: number, y: number) {
+        addPoint(x: number, y: number) {
             this.points.push({ x, y });
         }
 
-        display(ctx: CanvasRenderingContext2D) {
+        draw(ctx: CanvasRenderingContext2D) {
             ctx.lineWidth = this.thickness;
             ctx.beginPath();
             ctx.moveTo(this.points[0].x, this.points[0].y);
-            for (let i = 1; i < this.points.length; i++) {
-                ctx.lineTo(this.points[i].x, this.points[i].y);
-            }
+            this.points.forEach((point, index) => {
+                if (index > 0) ctx.lineTo(point.x, point.y);
+            });
             ctx.stroke();
         }
     }
 
-    class ToolPreview {
-        private x: number;
-        private y: number;
-        private thickness: number;
+    class ToolPreview implements Preview {
+        protected x: number;
+        protected y: number;
+        protected thickness: number;
 
         constructor(thickness: number) {
             this.x = 0;
@@ -110,34 +125,87 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    canvas.addEventListener('mousedown', (e) => {
-        isDrawing = true;
-        currentCommand = new MarkerLine(e.offsetX, e.offsetY, markerThickness);
-        dispatchDrawingChangedEvent();
-    });
+    class StickerPreview implements Preview {
+        private x: number;
+        private y: number;
+        private sticker: string;
 
-    canvas.addEventListener('mousemove', (e) => {
-        if (isDrawing && currentCommand) {
-            currentCommand.drag(e.offsetX, e.offsetY);
-            dispatchDrawingChangedEvent();
-        } else if (!isDrawing) {
-            if (!toolPreview) {
-                toolPreview = new ToolPreview(markerThickness);
-            }
-            toolPreview.updatePosition(e.offsetX, e.offsetY);
-            dispatchToolMovedEvent();
+        constructor(sticker: string) {
+            this.x = 0;
+            this.y = 0;
+            this.sticker = sticker;
+        }
+
+        updatePosition(x: number, y: number) {
+            this.x = x;
+            this.y = y;
+        }
+
+        draw(ctx: CanvasRenderingContext2D) {
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(this.sticker, this.x, this.y);
+        }
+    }
+
+    class Sticker {
+        private x: number;
+        private y: number;
+        private sticker: string;
+
+        constructor(x: number, y: number, sticker: string) {
+            this.x = x;
+            this.y = y;
+            this.sticker = sticker;
+        }
+
+        reposition(x: number, y: number) {
+            this.x = x;
+            this.y = y;
+        }
+
+        draw(ctx: CanvasRenderingContext2D) {
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(this.sticker, this.x, this.y);
+        }
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        if (activeTool === 'marker') {
+            isDrawing = true;
+            activeLine = new MarkerLine(e.offsetX, e.offsetY, markerThickness);
+            dispatchCustomEvent('drawing-changed');
+        } else if (activeTool === 'sticker' && activeSticker) {
+            const newSticker = new Sticker(e.offsetX, e.offsetY, activeSticker);
+            drawingCommands.push(newSticker);
+            redoStack = [];
+            dispatchCustomEvent('drawing-changed');
         }
     });
 
-    const dispatchToolMovedEvent = () => {
-        const event = new CustomEvent('tool-moved');
-        canvas.dispatchEvent(event);
-    };
+    canvas.addEventListener('mousemove', (e) => {
+        if (isDrawing && activeLine) {
+            activeLine.addPoint(e.offsetX, e.offsetY);
+            dispatchCustomEvent('drawing-changed');
+        } else if (!isDrawing) {
+            if (activeTool === 'marker') {
+                if (!toolPreview) toolPreview = new ToolPreview(markerThickness);
+                toolPreview.updatePosition(e.offsetX, e.offsetY);
+            } else if (activeTool === 'sticker' && activeSticker) {
+                toolPreview = new StickerPreview(activeSticker);
+                toolPreview.updatePosition(e.offsetX, e.offsetY);
+            }
+            dispatchCustomEvent('tool-moved');
+        }
+    });
 
     canvas.addEventListener('mouseup', () => {
-        if (isDrawing && currentCommand) {
-            drawingCommands.push(currentCommand);
-            currentCommand = null;
+        if (isDrawing && activeLine) {
+            drawingCommands.push(activeLine);
+            activeLine = null;
             redoStack = [];
             isDrawing = false;
         }
@@ -145,46 +213,42 @@ document.addEventListener("DOMContentLoaded", () => {
 
     canvas.addEventListener('mouseleave', () => {
         isDrawing = false;
-        currentCommand = null;
+        activeLine = null;
         toolPreview = null;
-        dispatchDrawingChangedEvent();
+        dispatchCustomEvent('drawing-changed');
     });
 
     canvas.addEventListener('drawing-changed', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawingCommands.forEach(command => command.display(ctx));
-        if (currentCommand) currentCommand.display(ctx);
+        drawingCommands.forEach(command => command.draw(ctx));
+        if (activeLine) activeLine.draw(ctx);
     });
 
     canvas.addEventListener('tool-moved', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawingCommands.forEach(command => command.display(ctx));
+        drawingCommands.forEach(command => command.draw(ctx));
         if (toolPreview && !isDrawing) toolPreview.draw(ctx);
     });
 
     clearButton.addEventListener('click', () => {
         drawingCommands = [];
         redoStack = [];
-        dispatchDrawingChangedEvent();
+        dispatchCustomEvent('drawing-changed');
     });
 
     undoButton.addEventListener('click', () => {
         if (drawingCommands.length > 0) {
             const lastCommand = drawingCommands.pop();
-            if (lastCommand) {
-                redoStack.push(lastCommand);
-                dispatchDrawingChangedEvent();
-            }
+            if (lastCommand) redoStack.push(lastCommand);
+            dispatchCustomEvent('drawing-changed');
         }
     });
 
     redoButton.addEventListener('click', () => {
         if (redoStack.length > 0) {
             const redoCommand = redoStack.pop();
-            if (redoCommand) {
-                drawingCommands.push(redoCommand);
-                dispatchDrawingChangedEvent();
-            }
+            if (redoCommand) drawingCommands.push(redoCommand);
+            dispatchCustomEvent('drawing-changed');
         }
     });
 });
