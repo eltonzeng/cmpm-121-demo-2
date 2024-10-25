@@ -75,6 +75,19 @@ canvas {
   color: #888;
 }
 
+.toolButton {
+  padding: 0.5em 1em;
+  margin: 5px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.selectedTool {
+  border-color: #646cff; /* Highlight the selected tool */
+  background-color: #e0e0ff; /* Optional: change background color */
+}
+
 button {
   border-radius: 8px;
   border: 1px solid transparent;

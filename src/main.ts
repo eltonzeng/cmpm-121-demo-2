@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
     canvas.style.border = '1px solid black';
     document.body.appendChild(canvas);
 
-    // Create "Clear", "Undo", and "Redo" buttons
+    // Create "Clear", "Undo", "Redo", "Thin", and "Thick" buttons
     const clearButton = document.createElement('button');
     clearButton.textContent = 'Clear Canvas';
     document.body.appendChild(clearButton);
@@ -27,6 +27,16 @@ document.addEventListener("DOMContentLoaded", () => {
     redoButton.textContent = 'Redo';
     document.body.appendChild(redoButton);
 
+    const thinButton = document.createElement('button');
+    thinButton.textContent = 'Thin Marker';
+    thinButton.classList.add("toolButton");
+    document.body.appendChild(thinButton);
+
+    const thickButton = document.createElement('button');
+    thickButton.textContent = 'Thick Marker';
+    thickButton.classList.add("toolButton");
+    document.body.appendChild(thickButton);
+
     // Set document title
     document.title = APP_NAME;
     app.innerHTML = APP_NAME;
@@ -34,6 +44,20 @@ document.addEventListener("DOMContentLoaded", () => {
     // Get 2D drawing context
     const ctx = canvas.getContext('2d')!;
     let isDrawing = false;
+    let markerThickness = 2; // Default thickness
+
+    // Add event listeners to the tool buttons to change marker thickness
+    thinButton.addEventListener('click', () => {
+        markerThickness = 2;
+        thinButton.classList.add("selectedTool");
+        thickButton.classList.remove("selectedTool");
+    });
+
+    thickButton.addEventListener('click', () => {
+        markerThickness = 6;
+        thickButton.classList.add("selectedTool");
+        thinButton.classList.remove("selectedTool");
+    });
 
     // Arrays to store command objects and for undo/redo management
     let drawingCommands: MarkerLine[] = [];
@@ -48,10 +72,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // MarkerLine command class
     class MarkerLine {
-        private points: { x: number; y: number }[] = [];
+        private points: { x: number; y: number }[];
+        private thickness: number;
 
-        constructor(initialX: number, initialY: number) {
-            this.points.push({ x: initialX, y: initialY });
+        constructor(initialX: number, initialY: number, thickness: number) {
+            this.points = [{ x: initialX, y: initialY }];
+            this.thickness = thickness;
         }
 
         // Adds a new point to the line
@@ -59,23 +85,23 @@ document.addEventListener("DOMContentLoaded", () => {
             this.points.push({ x, y });
         }
 
-        // Renders the line onto the provided context
+        // Renders the line onto the provided context with the specified thickness
         display(ctx: CanvasRenderingContext2D) {
-            if (this.points.length > 1) {
-                ctx.beginPath();
-                ctx.moveTo(this.points[0].x, this.points[0].y);
-                for (let i = 1; i < this.points.length; i++) {
-                    ctx.lineTo(this.points[i].x, this.points[i].y);
-                }
-                ctx.stroke();
+            ctx.lineWidth = this.thickness; // Set line thickness
+            ctx.beginPath();
+            ctx.moveTo(this.points[0].x, this.points[0].y);
+
+            for (let i = 1; i < this.points.length; i++) {
+                ctx.lineTo(this.points[i].x, this.points[i].y);
             }
+            ctx.stroke();
         }
     }
 
     // Mouse event handlers to create MarkerLine commands
     canvas.addEventListener('mousedown', (e) => {
         isDrawing = true;
-        currentCommand = new MarkerLine(e.offsetX, e.offsetY); // Start a new MarkerLine command
+        currentCommand = new MarkerLine(e.offsetX, e.offsetY, markerThickness); // Start a new MarkerLine with selected thickness
         dispatchDrawingChangedEvent();
     });
 
