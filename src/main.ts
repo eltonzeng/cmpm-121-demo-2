@@ -60,12 +60,29 @@ document.addEventListener("DOMContentLoaded", () => {
         dispatchCustomEvent('tool-moved');
     };
 
+    const exportHighResolution = () => {
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = 1024;
+        exportCanvas.height = 1024;
+        const exportCtx = exportCanvas.getContext('2d')!;
+
+        exportCtx.scale(4, 4); // Scale by 4 to match the larger resolution
+
+        drawingCommands.forEach(command => command.draw(exportCtx));
+
+        const anchor = document.createElement("a");
+        anchor.href = exportCanvas.toDataURL("image/png");
+        anchor.download = "sketchpad.png";
+        anchor.click();
+    };
+
     createButton('Clear Canvas', clearCanvas);
     createButton('Undo', undoLastAction);
     createButton('Redo', redoLastAction);
     const thinButton = createButton('Thin Marker', () => selectTool('marker', 2, thinButton, thickButton));
     const thickButton = createButton('Thick Marker', () => selectTool('marker', 6, thickButton, thinButton));
     createButton('Add Custom Sticker', addCustomSticker);
+    createButton('Export', exportHighResolution); // New Export button
 
     thinButton.classList.add("toolButton");
     thickButton.classList.add("toolButton");
