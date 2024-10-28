@@ -16,6 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const button = document.createElement('button');
         button.textContent = text;
         button.addEventListener('click', onClick);
+        button.classList.add('toolButton');
         document.body.appendChild(button);
         return button;
     };
@@ -79,10 +80,10 @@ document.addEventListener("DOMContentLoaded", () => {
     createButton('Clear Canvas', clearCanvas);
     createButton('Undo', undoLastAction);
     createButton('Redo', redoLastAction);
-    const thinButton = createButton('Thin Marker', () => selectTool('marker', 2, thinButton, thickButton));
-    const thickButton = createButton('Thick Marker', () => selectTool('marker', 6, thickButton, thinButton));
+    const thinButton = createButton('Thin Marker', () => selectTool('marker', 4, thinButton, thickButton)); // Adjusted thickness
+    const thickButton = createButton('Thick Marker', () => selectTool('marker', 10, thickButton, thinButton)); // Adjusted thickness
     createButton('Add Custom Sticker', addCustomSticker);
-    createButton('Export', exportHighResolution); // New Export button
+    createButton('Export', exportHighResolution);
 
     thinButton.classList.add("toolButton");
     thickButton.classList.add("toolButton");
@@ -92,11 +93,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const ctx = canvas.getContext('2d')!;
     let isDrawing = false;
-    let markerThickness = 2;
+    let markerThickness = 4;
     let activeTool: 'marker' | 'sticker' = 'marker';
     let activeSticker: string | null = null;
 
-    const stickers = ["🥥", "🥭", "🍉"];
+    const stickers = ["🥥", "🥭", "🍉"]; // Fruits! I changed the original emojis to match a fruit theme in a previous commit
 
     const stickerButtonsContainer = document.createElement('div');
     document.body.appendChild(stickerButtonsContainer);
@@ -196,7 +197,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         draw(ctx: CanvasRenderingContext2D) {
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial'; // Larger font size for better visibility
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(this.sticker, this.x, this.y);
@@ -220,7 +221,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         draw(ctx: CanvasRenderingContext2D) {
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial'; // Larger font size for stickers
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(this.sticker, this.x, this.y);
