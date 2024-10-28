@@ -51,12 +51,28 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
+    const getRandomColor = () => {
+        const letters = '0123456789ABCDEF';
+        let color = '#';
+        for (let i = 0; i < 6; i++) {
+            color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+    };
+
+    const getRandomRotation = () => Math.floor(Math.random() * 360);
+
     const selectTool = (tool: 'marker' | 'sticker', thickness?: number, selectedButton?: HTMLButtonElement, otherButton?: HTMLButtonElement) => {
         activeTool = tool;
         if (tool === 'marker' && thickness !== undefined) {
             markerThickness = thickness;
+            markerColor = getRandomColor();
             selectedButton?.classList.add("selectedTool");
             otherButton?.classList.remove("selectedTool");
+            toolPreview = new ToolPreview(markerThickness, markerColor);
+        } else if (tool === 'sticker' && activeSticker) {
+            stickerRotation = getRandomRotation();
+            toolPreview = new StickerPreview(activeSticker, stickerRotation);
         }
         dispatchCustomEvent('tool-moved');
     };
@@ -67,7 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
         exportCanvas.height = 1024;
         const exportCtx = exportCanvas.getContext('2d')!;
 
-        exportCtx.scale(4, 4); // Scale by 4 to match the larger resolution
+        exportCtx.scale(4, 4);
 
         drawingCommands.forEach(command => command.draw(exportCtx));
 
@@ -76,6 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
         anchor.download = "sketchpad.png";
         anchor.click();
     };
+
 
     createButton('Clear Canvas', clearCanvas);
     createButton('Undo', undoLastAction);
@@ -94,10 +111,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const ctx = canvas.getContext('2d')!;
     let isDrawing = false;
     let markerThickness = 4;
+    let markerColor = getRandomColor(); // Start with a random color
+    let stickerRotation = getRandomRotation(); // Start with a random rotation
     let activeTool: 'marker' | 'sticker' = 'marker';
     let activeSticker: string | null = null;
 
-    const stickers = ["🥥", "🥭", "🍉"]; // Fruits! I changed the original emojis to match a fruit theme in a previous commit
+    const stickers = ["🥥", "🥭", "🍉"];
 
     const stickerButtonsContainer = document.createElement('div');
     document.body.appendChild(stickerButtonsContainer);
@@ -124,7 +143,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const selectSticker = (sticker: string) => {
         activeTool = 'sticker';
         activeSticker = sticker;
-        toolPreview = new StickerPreview(sticker);
+        stickerRotation = getRandomRotation();
+        toolPreview = new StickerPreview(sticker, stickerRotation);
         dispatchCustomEvent('tool-moved');
     };
 
@@ -136,10 +156,12 @@ document.addEventListener("DOMContentLoaded", () => {
     class MarkerLine {
         private points: { x: number; y: number }[];
         private thickness: number;
+        private color: string;
 
-        constructor(initialX: number, initialY: number, thickness: number) {
+        constructor(initialX: number, initialY: number, thickness: number, color: string) {
             this.points = [{ x: initialX, y: initialY }];
             this.thickness = thickness;
+            this.color = color;
         }
 
         addPoint(x: number, y: number) {
@@ -148,6 +170,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         draw(ctx: CanvasRenderingContext2D) {
             ctx.lineWidth = this.thickness;
+            ctx.strokeStyle = this.color;
             ctx.beginPath();
             ctx.moveTo(this.points[0].x, this.points[0].y);
             this.points.forEach((point, index) => {
@@ -161,11 +184,13 @@ document.addEventListener("DOMContentLoaded", () => {
         protected x: number;
         protected y: number;
         protected thickness: number;
+        protected color: string;
 
-        constructor(thickness: number) {
+        constructor(thickness: number, color: string) {
             this.x = 0;
             this.y = 0;
             this.thickness = thickness;
+            this.color = color;
         }
 
         updatePosition(x: number, y: number) {
@@ -174,6 +199,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         draw(ctx: CanvasRenderingContext2D) {
+            ctx.strokeStyle = this.color;
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.thickness / 2, 0, Math.PI * 2);
             ctx.stroke();
@@ -184,11 +210,13 @@ document.addEventListener("DOMContentLoaded", () => {
         private x: number;
         private y: number;
         private sticker: string;
+        private rotation: number;
 
-        constructor(sticker: string) {
+        constructor(sticker: string, rotation: number) {
             this.x = 0;
             this.y = 0;
             this.sticker = sticker;
+            this.rotation = rotation;
         }
 
         updatePosition(x: number, y: number) {
@@ -197,10 +225,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         draw(ctx: CanvasRenderingContext2D) {
-            ctx.font = '36px Arial'; // Larger font size for better visibility
+            ctx.font = '36px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(this.sticker, this.x, this.y);
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate((this.rotation * Math.PI) / 180);
+            ctx.fillText(this.sticker, 0, 0);
+            ctx.restore();
         }
     }
 
@@ -208,11 +240,13 @@ document.addEventListener("DOMContentLoaded", () => {
         private x: number;
         private y: number;
         private sticker: string;
+        private rotation: number;
 
-        constructor(x: number, y: number, sticker: string) {
+        constructor(x: number, y: number, sticker: string, rotation: number) {
             this.x = x;
             this.y = y;
             this.sticker = sticker;
+            this.rotation = rotation;
         }
 
         reposition(x: number, y: number) {
@@ -221,20 +255,19 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         draw(ctx: CanvasRenderingContext2D) {
-            ctx.font = '36px Arial'; // Larger font size for stickers
+            ctx.font = '36px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(this.sticker, this.x, this.y);
         }
     }
 
     canvas.addEventListener('mousedown', (e) => {
         if (activeTool === 'marker') {
             isDrawing = true;
-            activeLine = new MarkerLine(e.offsetX, e.offsetY, markerThickness);
+            activeLine = new MarkerLine(e.offsetX, e.offsetY, markerThickness, 'red');
             dispatchCustomEvent('drawing-changed');
         } else if (activeTool === 'sticker' && activeSticker) {
-            const newSticker = new Sticker(e.offsetX, e.offsetY, activeSticker);
+            const newSticker = new Sticker(e.offsetX, e.offsetY, activeSticker, 0);
             drawingCommands.push(newSticker);
             redoStack = [];
             dispatchCustomEvent('drawing-changed');
@@ -247,10 +280,10 @@ document.addEventListener("DOMContentLoaded", () => {
             dispatchCustomEvent('drawing-changed');
         } else if (!isDrawing) {
             if (activeTool === 'marker') {
-                if (!toolPreview) toolPreview = new ToolPreview(markerThickness);
+                if (!toolPreview) toolPreview = new ToolPreview(markerThickness, 'black');
                 toolPreview.updatePosition(e.offsetX, e.offsetY);
             } else if (activeTool === 'sticker' && activeSticker) {
-                toolPreview = new StickerPreview(activeSticker);
+                toolPreview = new StickerPreview(activeSticker, 10);
                 toolPreview.updatePosition(e.offsetX, e.offsetY);
             }
             dispatchCustomEvent('tool-moved');
