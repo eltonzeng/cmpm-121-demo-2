@@ -12,21 +12,60 @@ document.addEventListener("DOMContentLoaded", () => {
     canvas.style.border = '1px solid black';
     document.body.appendChild(canvas);
 
-    const createButton = (text: string) => {
+    const createButton = (text: string, onClick: () => void) => {
         const button = document.createElement('button');
         button.textContent = text;
+        button.addEventListener('click', onClick);
         document.body.appendChild(button);
         return button;
     };
 
-    const clearButton = createButton('Clear Canvas');
-    const undoButton = createButton('Undo');
-    const redoButton = createButton('Redo');
-    const thinButton = createButton('Thin Marker');
-    const thickButton = createButton('Thick Marker');
-    const coconutButton = createButton('🥥');
-    const mangoButton = createButton('🥭');
-    const watermelonButton = createButton('🍉');
+    const clearCanvas = () => {
+        drawingCommands = [];
+        redoStack = [];
+        dispatchCustomEvent('drawing-changed');
+    };
+
+    const undoLastAction = () => {
+        if (drawingCommands.length > 0) {
+            const lastCommand = drawingCommands.pop();
+            if (lastCommand) redoStack.push(lastCommand);
+            dispatchCustomEvent('drawing-changed');
+        }
+    };
+
+    const redoLastAction = () => {
+        if (redoStack.length > 0) {
+            const redoCommand = redoStack.pop();
+            if (redoCommand) drawingCommands.push(redoCommand);
+            dispatchCustomEvent('drawing-changed');
+        }
+    };
+
+    const addCustomSticker = () => {
+        const customSticker = prompt("Enter your custom sticker:", "🌟");
+        if (customSticker) {
+            stickers.push(customSticker);
+            renderStickerButtons();
+        }
+    };
+
+    const selectTool = (tool: 'marker' | 'sticker', thickness?: number, selectedButton?: HTMLButtonElement, otherButton?: HTMLButtonElement) => {
+        activeTool = tool;
+        if (tool === 'marker' && thickness !== undefined) {
+            markerThickness = thickness;
+            selectedButton?.classList.add("selectedTool");
+            otherButton?.classList.remove("selectedTool");
+        }
+        dispatchCustomEvent('tool-moved');
+    };
+
+    createButton('Clear Canvas', clearCanvas);
+    createButton('Undo', undoLastAction);
+    createButton('Redo', redoLastAction);
+    const thinButton = createButton('Thin Marker', () => selectTool('marker', 2, thinButton, thickButton));
+    const thickButton = createButton('Thick Marker', () => selectTool('marker', 6, thickButton, thinButton));
+    createButton('Add Custom Sticker', addCustomSticker);
 
     thinButton.classList.add("toolButton");
     thickButton.classList.add("toolButton");
@@ -40,21 +79,19 @@ document.addEventListener("DOMContentLoaded", () => {
     let activeTool: 'marker' | 'sticker' = 'marker';
     let activeSticker: string | null = null;
 
-    const setSelectedTool = (thickness: number, selectedButton: HTMLButtonElement, otherButton: HTMLButtonElement) => {
-        markerThickness = thickness;
-        activeTool = 'marker';
-        activeSticker = null;
-        selectedButton.classList.add("selectedTool");
-        otherButton.classList.remove("selectedTool");
-        dispatchCustomEvent('tool-moved');
+    const stickers = ["🥥", "🥭", "🍉"];
+
+    const stickerButtonsContainer = document.createElement('div');
+    document.body.appendChild(stickerButtonsContainer);
+
+    const renderStickerButtons = () => {
+        stickerButtonsContainer.innerHTML = '';
+        stickers.forEach(sticker => {
+            createButton(sticker, () => selectSticker(sticker));
+        });
     };
 
-    thinButton.addEventListener('click', () => setSelectedTool(2, thinButton, thickButton));
-    thickButton.addEventListener('click', () => setSelectedTool(6, thickButton, thinButton));
-
-    coconutButton.addEventListener('click', () => selectSticker('🥥'));
-    mangoButton.addEventListener('click', () => selectSticker('🥭'));
-    watermelonButton.addEventListener('click', () => selectSticker('🍉'));
+    renderStickerButtons();
 
     let drawingCommands: (MarkerLine | Sticker)[] = [];
     let redoStack: (MarkerLine | Sticker)[] = [];
@@ -228,27 +265,5 @@ document.addEventListener("DOMContentLoaded", () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawingCommands.forEach(command => command.draw(ctx));
         if (toolPreview && !isDrawing) toolPreview.draw(ctx);
-    });
-
-    clearButton.addEventListener('click', () => {
-        drawingCommands = [];
-        redoStack = [];
-        dispatchCustomEvent('drawing-changed');
-    });
-
-    undoButton.addEventListener('click', () => {
-        if (drawingCommands.length > 0) {
-            const lastCommand = drawingCommands.pop();
-            if (lastCommand) redoStack.push(lastCommand);
-            dispatchCustomEvent('drawing-changed');
-        }
-    });
-
-    redoButton.addEventListener('click', () => {
-        if (redoStack.length > 0) {
-            const redoCommand = redoStack.pop();
-            if (redoCommand) drawingCommands.push(redoCommand);
-            dispatchCustomEvent('drawing-changed');
-        }
     });
 });
